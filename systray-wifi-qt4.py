@@ -3,7 +3,7 @@
 """
     Systray icon showing wifi singnal strength on remote device (wifi repeater etc)
 
-    Designed for TDE (whch is Qt3 based), but implemented for Qt4 as Qt3 (TQt) is missing QSystemTrayIcon
+    Designed for TDE (whch is Qt3 based), but implemented for Qt4 as Qt3 (TQt) is missing QSystemTrayIcon class
 
     Note: QSound is not working (broken ?) - so no audible notifications for now
 
@@ -21,10 +21,15 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
         """ init"""
         QtGui.QSystemTrayIcon.__init__(self, icon, parent)
+        # menu - exit
         self.menu = QtGui.QMenu(parent)
         exitAction = self.menu.addAction("Exit")
         self.setContextMenu(self.menu)
+        # menu refresh
         QtCore.QObject.connect(exitAction,QtCore.SIGNAL('triggered()'), self.exit)
+        refreshAction = self.menu.addAction("Refresh")
+        self.setContextMenu(self.menu)
+        QtCore.QObject.connect(refreshAction, QtCore.SIGNAL('triggered()'), self.update)
         #
         self.timer = QtCore.QTimer()
         QtCore.QTimer.connect(self.timer, QtCore.SIGNAL("timeout()"), self.update)
@@ -90,7 +95,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
     def check_device(self, device):
         """ get data from monitored (remote) device """
         res = {
-            'error': 'error',
+            'signal': 'error',
             'desc': '?'
         }
         try:
@@ -98,25 +103,33 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
             # setWirelessTable('00:26:18:85:25:87','eth1','0:28:11','39M','78M','-57','-79','22','453');
             for line in urllib2.urlopen(device['url'], timeout=device['timeout']).readlines():
                 m = re.search(device['regex'], line)
-                if m: return m.groupdict()
+                if m:
+                    return m.groupdict()
             res = {
-                'error': 'nocon',
-                'desc': device['nocon']
+                'signal': 'nocon',
+                'desc': device['no_wifi']
             }
         except urllib2.HTTPError as e:
-            res['desc'] = device['http_error'] % e
+            res['desc'] = device['http_error'] % { 'errno': e.code, 'strerror': e.reason }
         except urllib2.URLError as e:
-            res['desc'] = device['url_error'] % e
+            res['desc'] = device['url_error'] % { 'errno': e.reason.errno, 'strerror': e.reason.strerror }
         return res
 
+    def callculate(self, d):
+        """ calculate Q, SN fields """
+        if d.get('Q10'):
+            d['Q'] = int(d['Q10']) // 10
+            d['SN'] = int(d['signal']) - int(d['noise'])
+        return d
+
     def update(self):
-        res = self.test_data() if self.data is not None else self.check_device(self.device)
+        res = self.test_data() if hasattr(self, 'data') else self.check_device(self.device)
         # if ok (got Q10)
         if res.get('Q10'):
-            # valid data {Q10: 123, SNR: 30}
-            quality = int(res['Q10']) // 10
+            # valid data {Q10: 123, SNR: 30} so calculate Q,SN fields
+            res = self.callculate(res)
             tooltip = self.device['tooltip'] % res
-            entry = self.get_entry_for_level(quality)
+            entry = self.get_entry_for_level(res[self.device['tab_key']])
             #self.play_sound(entry['sound'])
             icon = entry['icon']
         else:
@@ -158,23 +171,46 @@ def main():
 
     # config
     app_dir = os.path.dirname(sys.argv[0])
-    # signal_level:icon_name
-    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 20:medium, 50:high', app_dir + '/icon/128')
+
+    # signal table
+    #
+    # signal_level:icon_name - signal_level can be Q,Q10,SNR,SN based on tab_key
+    # negative numbers are for error conditions so they can be arbitrary negative number
+    # entries are trimmed so whitespaces are removed before processing
+    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', app_dir + '/icon/128')
+
     # remote device
+    #
     device = {
+        # device to check
         'url': 'http://rep2',
-        'regex': r"setWirelessTable\('(?P<MAC>.+)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
-        'timeout': 5,
-        'tooltip': "SNR: %(SNR)s / Q10: %(Q10)s",
+        # dd-wrt r22000++ king-kong
+        #'regex': r"setWirelessTable\('(?P<MAC>.+)',"
+        #         r"'(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
+        #         r"'(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
+        # dd-wrt r41328
+        'regex': r"setWirelessTable\('(?P<MAC>.+)',"
+                 r"'(?P<rname>.*)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
+                 r"'(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
+        # connect timeout
+        'timeout': 3,
+        # key for signal table - one of Q, Q10, SNR, SN
+        'tab_key': 'Q',
+        # ok tooltip
+        'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
+        # error tooltip
         'tooltip_error': 'ERR: %(desc)s',
+        # error message - no wifi connection to AP
         'no_wifi': 'no wifi connection',
-        'http_error': '%(strerror)s',
-        'url_error': '%(reason.strerror)s',
+        # error message - http error - supported keys: errno, strerror
+        'http_error': 'http %(strerror)s',
+        # error message - url error - supported keys: errno, strerror
+        'url_error':  'url %(strerror)s',
     }
     wifiIcon.cfg_device(device)
 
     # execute diagnostic test without quering remote device
-    data = [
+    tdata = [
         {'signal': 'error', 'desc': 'connection timeout'},
         {'signal': 'nocon', 'desc': 'no wifi connection'},
         {'Q10': '0',   'SNR': '-5'},
@@ -184,11 +220,11 @@ def main():
         {'Q10': '750', 'SNR': '35'},
         {'Q10': '1000', 'SNR': '55'}
     ]
-    wifiIcon.test_data(data)
+    #wifiIcon.test_data(tdata)
 
     # run
     wifiIcon.show()
-    wifiIcon.autoupdate(5)
+    wifiIcon.autoupdate(30)
     sys.exit(app.exec_())
 
 

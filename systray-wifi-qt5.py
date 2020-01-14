@@ -1,11 +1,25 @@
 #!/usr/bin/python3
 
 """
-    Systray icon showing wifi singnal strength on remote device (wifi repeater etc)
+    Systray icon showing wifi signal strength on remote device (wifi repeater etc)
 
     Designed for TDE (whch is Qt3 based), but implemented for Qt5 as Qt3 (TQt) is missing QSystemTrayIcon class
 
+    It periodically queries the remote device (wifi client/bridge/repeater) dd-wrt info page (no login/pass required)
+    and extracts access point status line. Based on preconfig table signal_level->icon is renders system-tray
+    icon to visualise connection status. The tooltip shows more details. Right-click menu supports forced refresh and exit.
+
+    link to ~/.trinity/Autostart/ for autostart
+
     Note: QSound is not working (broken ?) - so no audible notifications for now
+
+    Note: There are intermittent artifacts on nvidia-340 xorg drivers.
+
+    TODO: debug why QSound() is not working
+    TODO: read consfig from ini
+    TODO: eliminate artifacts on nvidia drovers
+    TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
+    TODO: store long term statistics and provide visualization
 
 """
 
@@ -139,11 +153,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         return d
 
     def update(self):
+        """ query the remote device and update systray icon """
+        # remote device or test data if provided
         res = self.test_data() if hasattr(self, 'data') else self.check_device(self.device)
         if DBG: print('update() res=%s' % res)
         # if ok (got Q10)
         if res.get('Q10'):
-            # valid data {Q10: 123, SNR: 30} so calculate Q,SN fields
+            # valid data {Q10: 123, SNR: 30, signal:-54, noise:-88} so calculate Q,SN fields
             res = self.callculate(res)
             tooltip = self.device['tooltip'] % res
             entry = self.get_entry_for_level(res[self.device['tab_key']])
@@ -153,6 +169,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             # error 'signal':'nocon', 'desc':description
             icon = self.get_icon_for_signal(res['signal'])
             tooltip = self.device['tooltip_error'] % res
+        # update icon and tooiltip
         dbg_print('update() icon=%s tooltip=%s' % (icon, tooltip))
         self.setIcon(icon)
         self.setToolTip(tooltip)
@@ -162,7 +179,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         if sound: sound.play()
 
     def test_data(self, data=None):
-        """ diagnostic data """
+        """ diagnostic data for self-test """
         # initiate data if provided
         if data:
             self.data, self.data_idx = data, 0
@@ -191,10 +208,10 @@ def main(app):
     #
     # signal_level:icon_name - signal_level can be Q,Q10,SNR,SN based on tab_key
     # negative numbers are for error conditions so they can be arbitrary negative number
-    # entries are trimmed so whitespaces are removed before processing
+    # entries are trimmed so any whitespaces are removed before processing
     wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', app_dir + '/icon/128')
 
-    # remote device
+    # remote device config
     #
     device = {
         # device to check

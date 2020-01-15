@@ -15,11 +15,14 @@
 
     Note: There are intermittent artifacts on nvidia-340 xorg drivers.
 
+    Note: there are visual artifacts (not specific to nvidia) caused probabbly by systray icon cache
+    It works ok the 1st (+2nd) time but then is always starts with artifacts (workaround is to restart xorg)
+
     TODO: debug why QSound() is not working
     TODO: read consfig from ini
-    TODO: eliminate artifacts on nvidia drovers
+    TODO: visual artifcats - icon cache clear-up ?
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
-    TODO: store long term statistics and provide visualization
+    TODO: store long term statistics and provide signal strength plot
 
 """
 
@@ -46,15 +49,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         """ init"""
         # parent
         super().__init__(icon, parent)
-        # empty icon (trying to eliminate visible artifacts on nvidia-340, but is doesnt work all the time)
-        #self.setIcon(QIcon())
-        # menu - exit
+        # menu
         self.menu = QMenu()
-        exitAction = self.menu.addAction("Exit")
-        exitAction.triggered.connect(self.exit)
         # menu refresh
         refreshAction = self.menu.addAction("Refresh")
         refreshAction.triggered.connect(self.update)
+        # menu - exit
+        exitAction = self.menu.addAction("Exit")
+        exitAction.triggered.connect(self.exit)
         #
         self.setContextMenu(self.menu)
         #
@@ -195,21 +197,21 @@ class SystemTrayIcon(QSystemTrayIcon):
 def main(app):
     """ main - instatiate app, read/process config and execute """
 
+    # config
+    app_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+    ico_dir = app_dir + '/icon/128'
+
     # default icon
     style = app.style()
-    #icon = QIcon(style.standardPixmap(QStyle.SP_ComputerIcon))
-    icon = QIcon(style.standardPixmap(QStyle.SP_BrowserStop))
-    wifiIcon = SystemTrayIcon(icon, app)
-
-    # config
-    app_dir = os.path.dirname(sys.argv[0])
+    icon = QIcon(style.standardPixmap(QStyle.SP_ComputerIcon))
+    wifiIcon = SystemTrayIcon(icon)
 
     # signal table
     #
     # signal_level:icon_name - signal_level can be Q,Q10,SNR,SN based on tab_key
     # negative numbers are for error conditions so they can be arbitrary negative number
-    # entries are trimmed so any whitespaces are removed before processing
-    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', app_dir + '/icon/128')
+    # entries are trimmed so whitespaces are removed before processing
+    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', ico_dir)
 
     # remote device config
     #

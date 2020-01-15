@@ -21,16 +21,17 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
         """ init"""
         QtGui.QSystemTrayIcon.__init__(self, icon, parent)
-        # menu - exit
+        # menu
         self.menu = QtGui.QMenu(parent)
-        exitAction = self.menu.addAction("Exit")
-        self.setContextMenu(self.menu)
         # menu refresh
-        QtCore.QObject.connect(exitAction,QtCore.SIGNAL('triggered()'), self.exit)
         refreshAction = self.menu.addAction("Refresh")
         self.setContextMenu(self.menu)
         QtCore.QObject.connect(refreshAction, QtCore.SIGNAL('triggered()'), self.update)
-        #
+        # menu - exit
+        exitAction = self.menu.addAction("Exit")
+        self.setContextMenu(self.menu)
+        QtCore.QObject.connect(exitAction, QtCore.SIGNAL('triggered()'), self.exit)
+        # timer - periodic updates
         self.timer = QtCore.QTimer()
         QtCore.QTimer.connect(self.timer, QtCore.SIGNAL("timeout()"), self.update)
 
@@ -41,6 +42,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
     def autoupdate(self, sec=60):
         """ refresh icon every sec seconds """
         self.update()
+        self.show()
         self.timer.start(sec * 1000)
 
     def _load_icon(self, dir, name, ext='.png'):
@@ -158,26 +160,24 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         return d
 
 
-def main():
+def main(app):
     """ main - instatiate app, read/process config and execute """
 
-    # application
-    app = QtGui.QApplication(sys.argv[1:])
+    # config
+    app_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+    ico_dir = app_dir + '/icon/128'
 
     # default icon
     style = app.style()
     icon = QtGui.QIcon(style.standardPixmap(QtGui.QStyle.SP_ComputerIcon))
     wifiIcon = SystemTrayIcon(icon)
 
-    # config
-    app_dir = os.path.dirname(sys.argv[0])
-
     # signal table
     #
     # signal_level:icon_name - signal_level can be Q,Q10,SNR,SN based on tab_key
     # negative numbers are for error conditions so they can be arbitrary negative number
     # entries are trimmed so whitespaces are removed before processing
-    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', app_dir + '/icon/128')
+    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', ico_dir)
 
     # remote device
     #
@@ -213,22 +213,24 @@ def main():
     tdata = [
         {'signal': 'error', 'desc': 'connection timeout'},
         {'signal': 'nocon', 'desc': 'no wifi connection'},
-        {'Q10': '0',   'SNR': '-5'},
-        {'Q10': '150', 'SNR': '5'},
-        {'Q10': '350', 'SNR': '15'},
-        {'Q10': '500', 'SNR': '25'},
-        {'Q10': '750', 'SNR': '35'},
-        {'Q10': '1000', 'SNR': '55'}
+        {'Q10': '0', 'SNR': '-5', 'signal': '-100', 'noise': '-95'},
+        {'Q10': '150', 'SNR': '5', 'signal': '-95', 'noise': '-100'},
+        {'Q10': '160', 'SNR': '15', 'signal': '-85', 'noise': '-100'},
+        {'Q10': '350', 'SNR': '25', 'signal': '-75', 'noise': '-100'},
+        {'Q10': '360', 'SNR': '35', 'signal': '-65', 'noise': '-100'},
+        {'Q10': '1000', 'SNR': '55', 'signal': '-45', 'noise': '-100'}
     ]
-    #wifiIcon.test_data(tdata)
+    wifiIcon.test_data(tdata)
 
     # run
-    wifiIcon.show()
-    wifiIcon.autoupdate(30)
-    sys.exit(app.exec_())
+    wifiIcon.autoupdate(5)
+    return sys.exit(app.exec_())
 
 
 # MAIN
 #
 if __name__ == '__main__':
-    main()
+    # application
+    app = QtGui.QApplication(sys.argv[1:])
+
+    main(app)

@@ -1,11 +1,28 @@
 #!/usr/bin/python
 
 """
-    Systray icon showing wifi singnal strength on remote device (wifi repeater etc)
+    Systray icon showing wifi signal strength on remote device (wifi repeater etc)
 
     Designed for TDE (whch is Qt3 based), but implemented for Qt4 as Qt3 (TQt) is missing QSystemTrayIcon class
 
+    It periodically queries the remote device (wifi client/bridge/repeater) dd-wrt info page (no login/pass required)
+    and extracts access point status line. Based on preconfig table signal_level->icon is renders system-tray
+    icon to visualise connection status. The tooltip shows more details. Right-click menu supports forced refresh and exit.
+
+    link to ~/.trinity/Autostart/ for autostart
+
     Note: QSound is not working (broken ?) - so no audible notifications for now
+
+    Note: There are intermittent artifacts on nvidia-340 xorg drivers.
+
+    Note: there are visual artifacts (not specific to nvidia) caused probabbly by systray icon cache
+    It works ok the 1st (+2nd) time but then is always starts with artifacts (workaround is to restart xorg)
+
+    TODO: debug why QSound() is not working
+    TODO: read consfig from ini
+    TODO: intermittent visual artifcats - icon cache clear-up [/var/tmp/kdecache-robert/icon-cache.kcache] ?
+    TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
+    TODO: store long term statistics and provide signal strength plot
 
 """
 

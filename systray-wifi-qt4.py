@@ -14,6 +14,12 @@ from PyQt4 import QtGui, QtCore
 import urllib2
 import re
 
+DBG = 1
+
+def dbg_print(str):
+    """ quick-&-dirty debug helper (output to stdout) """
+    if DBG: print(str)
+
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
     """ system tray icon showing wifi signal strength on remore device """
@@ -39,10 +45,14 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         """ exit has been pressed """
         QtCore.QCoreApplication.exit()
 
-    def autoupdate(self, sec=60):
-        """ refresh icon every sec seconds """
+    def autoupdate(self, sec=None):
+        """ initiate auto-refresh - default by device config, cen be overrriden by sec seconds """
+        # update and show icon
         self.update()
         self.show()
+        # override default refresh time if sec is provided
+        sec = self.device['update_interval'] if sec is None else sec
+        # start periodic timer
         self.timer.start(sec * 1000)
 
     def _load_icon(self, dir, name, ext='.png'):
@@ -76,6 +86,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
                 'sound': self._load_sound(dir, txt)
             }
             self.signal.append(item)
+            dbg_print('cfg_signal_table() lvl_txt=%s item=%s' % (lvl_txt, item))
         return
 
     def get_entry_for_level(self, level):
@@ -84,6 +95,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         for tab in self.signal:
             if level < tab['level']: break
             entry = tab
+        dbg_print('get_entry_for_level(%d) -> %s' % (level, entry))
         return entry
 
     def get_icon_for_signal(self, txt):
@@ -93,6 +105,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
     def cfg_device(self, device):
         """ configure device to monitor """
         self.device = device
+        self.cfg_signal_table(device['signal_icon'], device['dir_icon'])
 
     def check_device(self, device):
         """ get data from monitored (remote) device """
@@ -125,7 +138,10 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         return d
 
     def update(self):
+        """ query the remote device and update systray icon """
+        # remote device or test data if provided
         res = self.test_data() if hasattr(self, 'data') else self.check_device(self.device)
+        if DBG: print('update() res=%s' % res)
         # if ok (got Q10)
         if res.get('Q10'):
             # valid data {Q10: 123, SNR: 30} so calculate Q,SN fields
@@ -138,6 +154,8 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
             # error 'signal':'nocon', 'desc':description
             icon = self.get_icon_for_signal(res['signal'])
             tooltip = self.device['tooltip_error'] % res
+        # update icon and tooiltip
+        dbg_print('update() icon=%s tooltip=%s' % (icon, tooltip))
         self.setIcon(icon)
         self.setToolTip(tooltip)
 
@@ -164,12 +182,13 @@ def main(app):
     """ main - instatiate app, read/process config and execute """
 
     # config
-    app_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-    ico_dir = app_dir + '/icon/128'
+    dir_app = os.path.dirname(os.path.realpath(sys.argv[0]))
+    dir_ico = dir_app + '/icon/128'
 
     # default icon
     style = app.style()
     icon = QtGui.QIcon(style.standardPixmap(QtGui.QStyle.SP_ComputerIcon))
+    #
     wifiIcon = SystemTrayIcon(icon)
 
     # signal table
@@ -177,7 +196,7 @@ def main(app):
     # signal_level:icon_name - signal_level can be Q,Q10,SNR,SN based on tab_key
     # negative numbers are for error conditions so they can be arbitrary negative number
     # entries are trimmed so whitespaces are removed before processing
-    wifiIcon.cfg_signal_table('-2:error, -1:nocon, 0:low, 16:medium, 35:high', ico_dir)
+    signal_icon = '-2:error, -1:nocon, 0:low, 16:medium, 35:high'
 
     # remote device
     #
@@ -196,8 +215,13 @@ def main(app):
         'timeout': 3,
         # key for signal table - one of Q, Q10, SNR, SN
         'tab_key': 'Q',
+        # signal -> icon lookup table
+        'signal_icon': signal_icon,
+        # relative directory with icon files
+        'dir_icon': dir_ico,
         # ok tooltip
-        'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
+        # 'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
+        'tooltip': "SNR: %(SNR)s / Q: %(Q)d%%",
         # error tooltip
         'tooltip_error': 'ERR: %(desc)s',
         # error message - no wifi connection to AP
@@ -206,24 +230,27 @@ def main(app):
         'http_error': 'http %(strerror)s',
         # error message - url error - supported keys: errno, strerror
         'url_error':  'url %(strerror)s',
+        # update frequency [seconds]
+        'update_interval': 30
     }
     wifiIcon.cfg_device(device)
 
     # execute diagnostic test without quering remote device
     tdata = [
-        {'signal': 'error', 'desc': 'connection timeout'},
-        {'signal': 'nocon', 'desc': 'no wifi connection'},
-        {'Q10': '0', 'SNR': '-5', 'signal': '-100', 'noise': '-95'},
-        {'Q10': '150', 'SNR': '5', 'signal': '-95', 'noise': '-100'},
-        {'Q10': '160', 'SNR': '15', 'signal': '-85', 'noise': '-100'},
-        {'Q10': '350', 'SNR': '25', 'signal': '-75', 'noise': '-100'},
-        {'Q10': '360', 'SNR': '35', 'signal': '-65', 'noise': '-100'},
-        {'Q10': '1000', 'SNR': '55', 'signal': '-45', 'noise': '-100'}
+        {'signal': 'error', 'desc': 'connection timeout'},              # timeout
+        {'signal': 'nocon', 'desc': 'no wifi connection'},              # no connection
+        {'Q10': '0', 'SNR': '-5', 'signal': '-100', 'noise': '-95'},    # low (lower limit)
+        {'Q10': '150', 'SNR': '5', 'signal': '-95', 'noise': '-100'},   # low (upper limit)
+        {'Q10': '160', 'SNR': '15', 'signal': '-85', 'noise': '-100'},  # medium (lower limit)
+        {'Q10': '340', 'SNR': '20', 'signal': '-80', 'noise': '-100'},  # medium (upper limit)
+        {'Q10': '350', 'SNR': '25', 'signal': '-75', 'noise': '-100'},  # high (lower limit)
+        {'Q10': '360', 'SNR': '35', 'signal': '-65', 'noise': '-100'},  # high
+        {'Q10': '1000', 'SNR': '55', 'signal': '-45', 'noise': '-100'}  # high
     ]
-    wifiIcon.test_data(tdata)
+    #wifiIcon.test_data(tdata)
 
     # run
-    wifiIcon.autoupdate(5)
+    wifiIcon.autoupdate()
     return sys.exit(app.exec_())
 
 

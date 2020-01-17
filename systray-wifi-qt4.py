@@ -20,7 +20,9 @@
 
     TODO: debug why QSound() is not working
     TODO: read consfig from ini
-    TODO: intermittent visual artifcats - icon cache clear-up [/var/tmp/kdecache-robert/icon-cache.kcache] ?
+    TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok):
+    TODO:        icon cache clear-up [/var/tmp/kdecache-robert/icon-cache.kcache] ? no, it doesn't help
+    TODO:        icon cache clear-up [/var/tmp/tdecache-robert/icon-cache.kcache] ? no, it doesn't help
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
     TODO: store long term statistics and provide signal strength plot
 
@@ -158,7 +160,6 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         """ query the remote device and update systray icon """
         # remote device or test data if provided
         res = self.test_data() if hasattr(self, 'data') else self.check_device(self.device)
-        if DBG: print('update() res=%s' % res)
         # if ok (got Q10)
         if res.get('Q10'):
             # valid data {Q10: 123, SNR: 30} so calculate Q,SN fields
@@ -172,6 +173,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
             icon = self.get_icon_for_signal(res['signal'])
             tooltip = self.device['tooltip_error'] % res
         # update icon and tooiltip
+        dbg_print('update() res=%s' % res)
         dbg_print('update() icon=%s tooltip=%s' % (icon, tooltip))
         self.setIcon(icon)
         self.setToolTip(tooltip)

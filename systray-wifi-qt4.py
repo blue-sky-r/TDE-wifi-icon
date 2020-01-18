@@ -35,6 +35,39 @@ import re
 
 DBG = 1
 
+default_cfg = {
+    'url': 'http://rep2',
+    # dd-wrt r22000++ king-kong
+    # 'regex': r"setWirelessTable\('(?P<MAC>.+)',"
+    #         r"'(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
+    #         r"'(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
+    # dd-wrt r41328
+    'regex': r"setWirelessTable\('(?P<MAC>.+)',"
+             r"'(?P<rname>.*)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
+             r"'(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
+    # connect timeout
+    'timeout': 3,
+    # key for signal table - one of Q, Q10, SNR, SN
+    'signal_key': 'Q',
+    # signal -> icon lookup table
+    'signal_icon': '-2:error, -1:nocon, 0:low, 16:medium, 35:high',
+    # relative directory with icon files
+    'dir_icon': 'icon/128',
+    # ok tooltip
+    # 'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
+    'tooltip': "SNR: %(SNR)s / Q: %(Q)d%%",
+    # error tooltip
+    'tooltip_error': 'ERR: %(desc)s',
+    # error message - no wifi connection to AP
+    'no_wifi': 'no wifi connection',
+    # error message - http error - supported keys: errno, strerror
+    'http_error': 'http %(strerror)s',
+    # error message - url error - supported keys: errno, strerror
+    'url_error': 'url %(strerror)s',
+    # update frequency [seconds]
+    'update_interval': 30
+}
+
 def dbg_print(str):
     """ quick-&-dirty debug helper (output to stdout) """
     if DBG: print(str)
@@ -196,6 +229,22 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         # return diag entry
         return d
 
+    def read_config(self, settings, default_cfg):
+        """ read config - retrun full cfg dictionary also with default values """
+        cfg = default_cfg
+        for key, val in cfg.items():
+            # read cfg or use default value
+            cfg = settings.value(key, val)
+        return cfg
+
+    def save_config(self, settings, default_cfg):
+        """ save config - only values different from defaults """
+        for key, val in self.device.items():
+            # skip default values
+            if val == default_cfg.get(key): continue
+            # save only non default values
+            settings.setValue(key, val)
+
 
 def main(app):
     """ main - instatiate app, read/process config and execute """
@@ -217,41 +266,13 @@ def main(app):
     # entries are trimmed so whitespaces are removed before processing
     signal_icon = '-2:error, -1:nocon, 0:low, 16:medium, 35:high'
 
-    # remote device
+    # read config
     #
-    device = {
-        # device to check
-        'url': 'http://rep2',
-        # dd-wrt r22000++ king-kong
-        #'regex': r"setWirelessTable\('(?P<MAC>.+)',"
-        #         r"'(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
-        #         r"'(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
-        # dd-wrt r41328
-        'regex': r"setWirelessTable\('(?P<MAC>.+)',"
-                 r"'(?P<rname>.*)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
-                 r"'(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
-        # connect timeout
-        'timeout': 3,
-        # key for signal table - one of Q, Q10, SNR, SN
-        'tab_key': 'Q',
-        # signal -> icon lookup table
-        'signal_icon': signal_icon,
-        # relative directory with icon files
-        'dir_icon': dir_ico,
-        # ok tooltip
-        # 'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
-        'tooltip': "SNR: %(SNR)s / Q: %(Q)d%%",
-        # error tooltip
-        'tooltip_error': 'ERR: %(desc)s',
-        # error message - no wifi connection to AP
-        'no_wifi': 'no wifi connection',
-        # error message - http error - supported keys: errno, strerror
-        'http_error': 'http %(strerror)s',
-        # error message - url error - supported keys: errno, strerror
-        'url_error':  'url %(strerror)s',
-        # update frequency [seconds]
-        'update_interval': 30
-    }
+    settings = QtCore.QSettings("SysTray", "systray-wifi-icon")
+    wifiIcon.device = default_cfg
+    wifiIcon.save_config(settings, default_cfg)
+    device = wifiIcon.read_config(settings, default_cfg)
+    # config
     wifiIcon.cfg_device(device)
 
     # execute diagnostic test without quering remote device

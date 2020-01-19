@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 """
-    Systray icon showing wifi signal strength on remote device (wifi repeater etc)
+    Systray icon showing wifi signal strength on remote device (wifi repeater, ap, client etc)
 
     Designed for TDE (whch is Qt3 based), but implemented for Qt4 as Qt3 (TQt) is missing QSystemTrayIcon class
 
@@ -9,20 +9,23 @@
     and extracts access point status line. Based on preconfig table signal_level->icon is renders system-tray
     icon to visualise connection status. The tooltip shows more details. Right-click menu supports forced refresh and exit.
 
-    link to ~/.trinity/Autostart/ for autostart
+    soft-link to ~/.trinity/Autostart/systray-wifi-icon for autostart
+
+    config: copy systray-wifi-icon.conf.sample to ~/.config/SysTray/systray-wifi-icon.conf and edit
 
     Note: QSound is not working (broken ?) - so no audible notifications for now
 
     Note: There are intermittent artifacts on nvidia-340 xorg drivers.
 
-    Note: there are visual artifacts (not specific to nvidia) caused probabbly by systray icon cache
-    It works ok the 1st (+2nd) time but then is always starts with artifacts (workaround is to restart xorg)
+    Note: there are visual artifacts (not specific to nvidia) caused probabbly by systray icon cache in memory
+    besause deleting icon-cache/kcache from disk doesn't help:
+        kde icon cache [rm /var/tmp/kdecache-robert/icon-cache.kcache]
+        yde icon cache [rm /var/tmp/tdecache-robert/icon-cache.kcache]
+
+    It works ok the 1st (+2nd) time but subsequent runs display visual artifacts (workaround is to restart xorg)
 
     TODO: debug why QSound() is not working
-    TODO: read consfig from ini
     TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok):
-    TODO:        icon cache clear-up [/var/tmp/kdecache-robert/icon-cache.kcache] ? no, it doesn't help
-    TODO:        icon cache clear-up [/var/tmp/tdecache-robert/icon-cache.kcache] ? no, it doesn't help
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
     TODO: store long term statistics and provide signal strength plot
 
@@ -35,7 +38,17 @@ import re
 
 DBG = 1
 
+# config file name: ~/.confir/dir/filename.conf (overrides default_cfg)
+#
+CONF = {
+    'dir': 'SysTray',
+    'filename': 'systray-wifi-icon'
+}
+
+# default monitored device config
+#
 default_cfg = {
+    # info page of remote device to monitor
     'url': 'http://rep2',
     # dd-wrt r22000++ king-kong
     # 'regex': r"setWirelessTable\('(?P<MAC>.+)',"
@@ -45,14 +58,16 @@ default_cfg = {
     'regex': r"setWirelessTable\('(?P<MAC>.+)',"
              r"'(?P<rname>.*)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)',"
              r"'(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
-    # connect timeout
-    'timeout': 3,
+    # http connect timeout in seconds
+    'timeout': 5,
     # key for signal table - one of Q, Q10, SNR, SN
     'signal_key': 'Q',
     # signal -> icon lookup table
     'signal_icon': '-2:error, -1:nocon, 0:low, 16:medium, 35:high',
     # relative directory with icon files
     'dir_icon': 'icon/128',
+    # relative directory with sound notifications
+    'dir_sound': 'sound',
     # ok tooltip
     # 'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
     'tooltip': "SNR: %(SNR)s / Q: %(Q)d%%",
@@ -109,19 +124,19 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
 
     def _load_icon(self, dir, name, ext='.png'):
         """ load resources - icons from dir identified by name with extension ext """
-        path = '/'.join([dir, name + ext])
+        path = os.path.join(dir, name + ext)
         return QtGui.QIcon(path) if os.path.exists(path) else None
 
     def _load_sound(self, dir, name, ext=['.ogg', '.mp3', '.wav']):
         """ load resources - sound file from dir identified by name, try ext extensions (the first wins) """
-        dirname = '/'.join([dir, name])
+        dirname = os.path.join(dir, name)
         for e in ext:
             path = dirname + e
             if os.path.exists(path):
                 return QtGui.QSound(path)
         return None
 
-    def cfg_signal_table(self, levelstr, dir, ext='.png', sep=':,'):
+    def cfg_signal_table(self, levelstr, dir_icon, dir_sound, sep=':,'):
         """ build configurable signal table - signal_level:icon_name, ... from string from config file """
         self.signal = []
         for lvl_txt in levelstr.strip().split(sep[1]):
@@ -133,9 +148,9 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
                 # signal description - low, medium, high, error
                 'signal': txt,
                 # preloaded icon resource
-                'icon':  self._load_icon(dir, txt),
+                'icon':  self._load_icon(dir_icon, txt),
                 # preloaded audible notification
-                'sound': self._load_sound(dir, txt)
+                'sound': self._load_sound(dir_sound, txt)
             }
             self.signal.append(item)
             dbg_print('cfg_signal_table() lvl_txt=%s item=%s' % (lvl_txt, item))
@@ -154,10 +169,12 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         """ get icon for signal text txt (used for error when level is not available) """
         return [ i['icon'] for i in self.signal if i['signal'] == txt ][0]
 
-    def cfg_device(self, device):
+    def cfg_device(self, app_dir, device):
         """ configure device to monitor """
         self.device = device
-        self.cfg_signal_table(device['signal_icon'], device['dir_icon'])
+        self.cfg_signal_table(device['signal_icon'],
+                              os.path.join(app_dir, device.get('dir_icon','')),
+                              os.path.join(app_dir, device.get('dir_sound','')) )
 
     def check_device(self, device):
         """ get data from monitored (remote) device """
@@ -198,7 +215,7 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
             # valid data {Q10: 123, SNR: 30} so calculate Q,SN fields
             res = self.callculate(res)
             tooltip = self.device['tooltip'] % res
-            entry = self.get_entry_for_level(res[self.device['tab_key']])
+            entry = self.get_entry_for_level(res[self.device['signal_key']])
             #self.play_sound(entry['sound'])
             icon = entry['icon']
         else:
@@ -234,24 +251,29 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         cfg = default_cfg
         for key, val in cfg.items():
             # read cfg or use default value
-            cfg = settings.value(key, val)
+            if type(cfg[key]) == str:
+                cfg[key] = str( settings.value(key, val).toString() )
+                continue
+            if type(cfg[key]) == int:
+                cfg[key] = settings.value(key, val).toInt()[0]
+                continue
         return cfg
 
     def save_config(self, settings, default_cfg):
         """ save config - only values different from defaults """
-        for key, val in self.device.items():
+        for key, val in default_cfg.items():
             # skip default values
-            if val == default_cfg.get(key): continue
+            if self.device.get(key) == val: continue
             # save only non default values
-            settings.setValue(key, val)
+            settings.setValue(key, self.device.get(key))
+        settings.sync()
 
 
 def main(app):
     """ main - instatiate app, read/process config and execute """
 
-    # config
-    dir_app = os.path.dirname(os.path.realpath(sys.argv[0]))
-    dir_ico = dir_app + '/icon/128'
+    # real app dir (resolve links also)
+    app_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
 
     # default icon
     style = app.style()
@@ -266,14 +288,15 @@ def main(app):
     # entries are trimmed so whitespaces are removed before processing
     signal_icon = '-2:error, -1:nocon, 0:low, 16:medium, 35:high'
 
-    # read config
+    # read config ~/.config/dir/filename.conf
     #
-    settings = QtCore.QSettings("SysTray", "systray-wifi-icon")
-    wifiIcon.device = default_cfg
-    wifiIcon.save_config(settings, default_cfg)
+    settings = QtCore.QSettings(CONF['dir'], CONF['filename'])
+    #wifiIcon.device = default_cfg
+    #wifiIcon.save_config(settings, default_cfg)
     device = wifiIcon.read_config(settings, default_cfg)
+    dbg_print('main() device: %s' % device)
     # config
-    wifiIcon.cfg_device(device)
+    wifiIcon.cfg_device(app_dir, device)
 
     # execute diagnostic test without quering remote device
     tdata = [

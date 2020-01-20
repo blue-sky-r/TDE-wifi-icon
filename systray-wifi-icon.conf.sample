@@ -1,0 +1,27 @@
+[General]
+# info page of remote device to monitor
+url=http://repeater
+# http connect timeout in seconds
+timeout=3
+# regex to extract status
+regex="setWirelessTable\\('(?P<MAC>.+)','(?P<rname>.*)','(?P<if>.+)','(?P<uptime>.+)','(?P<TXrate>.+)','(?P<RXrate>.+)','(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\\d+)','(?P<Q10>\\d+)'\\);"
+# key (extracted/calculated) for signal lookup table - one of Q, Q10, SNR, SN
+#signal_key=Q
+# lookup table: signal -> icon
+#signal_icon="-2:error, -1:nocon, 0:low, 16:medium, 35:high"
+# dir to icon resources (relative to app)
+#dir_icon=icon/128
+# dir to audio resources (relative to app)
+#dir_sound=sound
+# ok tooltip format
+#tooltip=SNR: %(SNR)s / Q: %(Q)d%%
+# error tooltip format
+#tooltip_error=ERR: %(desc)s
+# error message - http error - supported keys: errno, strerror
+#http_error=http %(strerror)s
+# error message - url error - supported keys: errno, strerror
+#url_error=url %(strerror)s
+# error message - no wifi connection to the AP
+#no_wifi=no wifi connection
+# refresh - update frequency in seconds
+#update_interval=30

@@ -60,18 +60,20 @@ default_cfg = {
              r"'(?P<info>.+)','(?P<signal>.+)','(?P<noise>.+)','(?P<SNR>\d+)','(?P<Q10>\d+)'\);",
     # http connect timeout in seconds
     'timeout': 5,
-    # key for signal table - one of Q, Q10, SNR, SN
+
+    # key (extracted/calculated) for signal lookup table - one of Q, Q10, SNR, SN
     'signal_key': 'Q',
-    # signal -> icon lookup table
+    # lookup table: signal -> icon
     'signal_icon': '-2:error, -1:nocon, 0:low, 16:medium, 35:high',
-    # relative directory with icon files
+
+    # dir to icon resources (relative to app)
     'dir_icon': 'icon/128',
-    # relative directory with sound notifications
+    # dir to audio resources (relative to app)
     'dir_sound': 'sound',
-    # ok tooltip
-    # 'tooltip': "SNR: %(SNR)s / SN: %(SN)d / Q: %(Q)d%%",
+
+    # ok tooltip format
     'tooltip': "SNR: %(SNR)s / Q: %(Q)d%%",
-    # error tooltip
+    # error tooltip format
     'tooltip_error': 'ERR: %(desc)s',
     # error message - no wifi connection to AP
     'no_wifi': 'no wifi connection',
@@ -79,7 +81,7 @@ default_cfg = {
     'http_error': 'http %(strerror)s',
     # error message - url error - supported keys: errno, strerror
     'url_error': 'url %(strerror)s',
-    # update frequency [seconds]
+    # refresh - update frequency in seconds
     'update_interval': 30
 }
 
@@ -288,17 +290,21 @@ def main(app):
     # entries are trimmed so whitespaces are removed before processing
     signal_icon = '-2:error, -1:nocon, 0:low, 16:medium, 35:high'
 
-    # read config ~/.config/dir/filename.conf
+    # config file ~/.config/dir/filename.conf
     #
     settings = QtCore.QSettings(CONF['dir'], CONF['filename'])
+
+    # uncomment 2 lines to generate default config file
     #wifiIcon.device = default_cfg
     #wifiIcon.save_config(settings, default_cfg)
+
+    # read conf
     device = wifiIcon.read_config(settings, default_cfg)
     dbg_print('main() device: %s' % device)
     # config
     wifiIcon.cfg_device(app_dir, device)
 
-    # execute diagnostic test without quering remote device
+    # execute diagnostic test without querying remote device
     tdata = [
         {'signal': 'error', 'desc': 'connection timeout'},              # timeout
         {'signal': 'nocon', 'desc': 'no wifi connection'},              # no connection
@@ -320,7 +326,7 @@ def main(app):
 # MAIN
 #
 if __name__ == '__main__':
+
     # application
     app = QtGui.QApplication(sys.argv[1:])
-
     main(app)

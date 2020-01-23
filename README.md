@@ -1,14 +1,13 @@
-## SystemTray Icon for WiFi signal
+## SystemTray Icon for quality / strength of WiFi signal
 
-| WiFi signal |  |
+| WiFi signal icon |  |
 |:---:|---|
-| ![SysTray-WiFi-icon](screen/signal-high.png) | SysTray Icon is a PyQt script for TDE (KDE 3.x) to depict WiFi signal strength on remote (networked) device | 
+| ![SysTray-WiFi-icon](screen/signal-high.png) | SysTray Icon is a PyQt script for TDE (KDE 3.x) to depict WiFi signal strength on remote (networked) device (router) | 
 
 The remote device is usually a router (client, client/bridge, repeater, repeater/bridge mode) on local LAN segment 
 to provide connectivity to another (adjancent) LAN segment. Due to nature of wifi there are fluctuations and collisions 
 affecting the quality of this intersegment wifi link. Therefore is necessary to provide simple visual feedback of the 
-link quality (rx/tx speed) to the user. The SysTray icon is the obvious solution.|  
-
+link quality (rx/tx speed) to the user. The SysTray icon is the obvious solution.
 
 ### config
 
@@ -67,7 +66,7 @@ There are two identical implementations in this repository:
 
 * systray-wifi-qt4.py - PyQt4 / Python 2.7 for older 32-bit systems
 
-* systray-wifi-qt5.py - PyQt5 / Python 3 for new 64-bit systems
+* systray-wifi-qt5.py - PyQt5 / Python 3 for 64-bit systems
 
 ### autostart
 
@@ -79,6 +78,8 @@ To start script automatically after login use symlink to ~/.config/Autostart/ di
     TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok):
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
     TODO: store long term statistics and provide signal strength plot
+    TODO: autostart symlink from r-click menu
+    TODO: parse command line parameters (like debug, config file, url, ... )
 
 ### keywords
 

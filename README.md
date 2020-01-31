@@ -38,7 +38,7 @@ The algorithm is very simple: retrieve - process - diplay - repeat
 
 | systray icon | wifi signal level |
 |:---:|---|
-| ![error](icon/44/error.png) | signal level ERROR - error connecting to the remote monitored device (check tooltip tof more detailed error message) |
+| ![error](icon/44/error.png) | signal level ERROR - error connecting to the remote monitored device (check tooltip for more detailed error message) |
 | ![no-connection](icon/44/nocon.png) | signal level NOCON - remote monitored device online, but no connection to AP |
 | ![low level](icon/44/low.png) | signal level LOW |
 | ![medium level](icon/44/medium.png) | signal level MEDIUM |
@@ -60,7 +60,7 @@ The algorithm is very simple: retrieve - process - diplay - repeat
 
 The current implementation is intended for [TDE - Trinity Desktop Environment](http://www.trinitydesktop.org) as 
 continuation of classic KDE 3.x (which was replaced by KDE 4/5 so all great KDE 3 achievements were lost). 
-It might also work on other KDE based environments if they support [QSystrayIcon](http://qt.com/) class from Qt4/5.
+It might also work (untested) on other KDE based environments if they support [QSystrayIcon](http://qt.com/) class from Qt4/5.
 
 There are two identical implementations in this repository:
 
@@ -75,7 +75,8 @@ To start script automatically after login use symlink to ~/.config/Autostart/ di
 ### to do
 
     TODO: debug why QSound() is not working
-    TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok):
+    TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok)
+          just noticed sometimes there are visual artifacts also on Dropbox icon so maybe it is TDE problem ?
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
     TODO: store long term statistics and provide signal strength plot
     TODO: autostart symlink from r-click menu

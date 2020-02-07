@@ -28,6 +28,8 @@
     TODO: intermittent visual artifcats (only on multiple runs, the 1st/2nd time the icon is ok):
     TODO: open minimalistic web browser with dd-wrt info page from right-click menu entry
     TODO: store long term statistics and provide signal strength plot
+    TODO: autostart symlink from r-click menu
+    TODO: parse command line parameters (like debug, config file, url, ... )
 
 """
 
@@ -36,9 +38,9 @@ from PyQt4 import QtGui, QtCore
 import urllib2
 import re
 
-DBG = 1
+DBG = 0
 
-# config file name: ~/.confir/dir/filename.conf (overrides default_cfg)
+# config file name: ~/.config/dir/filename.conf (overrides default_cfg)
 #
 CONF = {
     'dir': 'SysTray',
@@ -100,12 +102,11 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         self.menu = QtGui.QMenu(parent)
         # menu refresh
         refreshAction = self.menu.addAction("Refresh")
-        self.setContextMenu(self.menu)
         QtCore.QObject.connect(refreshAction, QtCore.SIGNAL('triggered()'), self.update)
         # menu - exit
         exitAction = self.menu.addAction("Exit")
-        self.setContextMenu(self.menu)
         QtCore.QObject.connect(exitAction, QtCore.SIGNAL('triggered()'), self.exit)
+        self.setContextMenu(self.menu)
         # timer - periodic updates
         self.timer = QtCore.QTimer()
         QtCore.QTimer.connect(self.timer, QtCore.SIGNAL("timeout()"), self.update)
